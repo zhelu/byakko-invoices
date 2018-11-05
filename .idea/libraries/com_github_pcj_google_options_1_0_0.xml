@@ -1,0 +1,12 @@
+<component name="libraryTable">
+  <library name="com.github.pcj:google-options:1.0.0" type="repository">
+    <properties maven-id="com.github.pcj:google-options:1.0.0" />
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/github/pcj/google-options/1.0.0/google-options-1.0.0.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/google/code/findbugs/jsr305/3.0.1/jsr305-3.0.1.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/google/guava/guava/19.0/guava-19.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
