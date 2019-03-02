@@ -137,7 +137,7 @@ public class KyudoInvoices {
     FileWriter waiverWriter = options.sendEmail ? new FileWriter(new File(
         options.basePath + "waiver-" + now.toString().replaceAll(":", "_") + ".csv")) : null;
     if (waiverWriter != null) {
-      waiverWriter.append("member,amount\n");
+      waiverWriter.append("member,amount\r\n");
     }
     for (Map.Entry<String, Integer> entry : invoices.getWaivers().entrySet()) {
       if (entry.getValue() == 0) {
@@ -145,7 +145,7 @@ public class KyudoInvoices {
       }
       System.out.println(entry.getKey() + "," + entry.getValue());
       if (waiverWriter != null) {
-        waiverWriter.append(entry.getKey() + "," + entry.getValue() + "\n");
+        waiverWriter.append(entry.getKey() + "," + entry.getValue() + "\r\n");
       }
     }
     if (waiverWriter != null) {
@@ -158,7 +158,7 @@ public class KyudoInvoices {
     FileWriter owedWriter = options.sendEmail ? new FileWriter(new File(
         options.basePath + "owed-" + now.toString().replaceAll(":", "_") + ".csv")) : null;
     if (owedWriter != null) {
-      owedWriter.append("member,amount\n");
+      owedWriter.append("member,amount\r\n");
     }
     for (Map.Entry<String, Integer> entry : invoices.getOwed().entrySet()) {
       if (entry.getValue() == 0) {
@@ -166,7 +166,7 @@ public class KyudoInvoices {
       }
       System.out.println(entry.getKey() + "," + entry.getValue());
       if (owedWriter != null) {
-        owedWriter.append(entry.getKey() + "," + entry.getValue() + "\n");
+        owedWriter.append(entry.getKey() + "," + entry.getValue() + "\r\n");
       }
     }
     if (owedWriter != null) {
@@ -220,10 +220,19 @@ public class KyudoInvoices {
     Multiset<String> attendanceCount = HashMultiset.create();
     Map<String, Type> typeMapping = new HashMap<>();
     Map<String, String> emailMapping = new HashMap<>();
+    Set<String> fullMembers = new HashSet<>();
     for (int i = 0; i < membersTable.rowKeySet().size(); ++i) {
       String firstName = membersTable.get(i, FIRST_NAME);
       String lastName = membersTable.get(i, LAST_NAME);
-      Type type = Type.fromString(membersTable.get(i, TYPE));
+      Type type;
+      try {
+        type = Type.fromString(membersTable.get(i, TYPE));
+      } catch (IllegalArgumentException e) {
+        System.err.println(
+            "Unknown type [" + membersTable.get(i, TYPE) + "] for member " + firstName + " " +
+                lastName);
+        throw new IllegalArgumentException(e);
+      }
       String email = membersTable.get(i, EMAIL_ADDRESS);
       String fullName = firstName + " " + lastName;
       typeMapping.put(fullName, type);
@@ -247,14 +256,22 @@ public class KyudoInvoices {
           break;
         }
       }
+      if (type == Type.MEMBER) {
+        fullMembers.add(attendanceToPaymentNameMapping.inverse().get(fullName));
+      }
     }
-    for (int i = 0; i < attendanceTable.rowKeySet().size(); ++i) {
+    Set<YearMonth> practiceRange = new HashSet<>();
+    for (int i = attendanceTable.rowKeySet().size() - 1; i >= 0; --i) {
       LocalDate practiceDate =
           LocalDate.parse(attendanceTable.get(i, DATE), ATTENDANCE_DATE_FORMATTER);
-      if (practiceDate.isBefore(startDate) || practiceDate.isAfter(endDate)) {
+      if (practiceDate.isAfter(endDate)) {
         continue;
       }
+      if (practiceDate.isBefore(startDate)) {
+        break;
+      }
       YearMonth month = YearMonth.of(practiceDate.getYear(), practiceDate.getMonth());
+      practiceRange.add(month);
       List<String> names = ATTENDANCE_SPLITTER.splitToList(attendanceTable.get(i, REGULAR_MEMBERS));
       for (String name : names) {
         try {
@@ -262,6 +279,8 @@ public class KyudoInvoices {
             case REGULAR:
               // Fall through intended
             case STUDENT:
+              // Fall through intended
+            case MEMBER:
               attendanceByMonth.put(name, month);
               break;
             case ASSOCIATE:
@@ -273,7 +292,10 @@ public class KyudoInvoices {
         }
       }
     }
-    // Count is number of free months.
+    for (String member : fullMembers) {
+      attendanceByMonth.putAll(member, practiceRange);
+    }
+    // Value is the amount of money pre-paid.
     Map<String, Integer> waivers = new HashMap<>();
     for (int i = 0; i < waiversTable.rowKeySet().size(); ++i) {
       String member = waiversTable.get(i, "member");
@@ -291,6 +313,9 @@ public class KyudoInvoices {
       int quantity = new BigDecimal(paymentTable.get(i, QUANTITY)).intValueExact();
       String item = paymentTable.get(i, ITEM);
       String member = paymentTable.get(i, CUSTOMER_NAME);
+      if (!typeMapping.containsKey(member)) {
+        continue;
+      }
       if (item.startsWith(FIRST_SHOT_ITEM)) {
         waivers.merge(member, getTwoMonthsFree(typeMapping.get(member)), Integer::sum);
       } else if (item.contains("Dues") || item.contains("dues")) {
@@ -307,7 +332,8 @@ public class KyudoInvoices {
     }
     invoiceNames.addAll(attendanceByMonth.keySet());
     invoiceNames.addAll(attendanceCount.elementSet());
-    invoiceNames.addAll(owedAmounts.keySet());
+    owedAmounts.keySet().stream().map(attendanceToPaymentNameMapping.inverse()::get).forEach(
+        invoiceNames::add);
     for (String name : invoiceNames) {
       Type type = typeMapping.get(name);
       if (type == null) {
@@ -318,8 +344,10 @@ public class KyudoInvoices {
         case REGULAR:
           // Fall through intended
         case STUDENT:
+          // Fall through intended
+        case MEMBER:
           int owedDifference =
-              attendanceByMonth.get(name).size() * getBaseFeeByType(type) -
+                  attendanceByMonth.get(name).size() * getBaseFeeByType(type) -
                   paidAmounts.getOrDefault(paymentName, 0) -
                   waivers.getOrDefault(paymentName, 0);
           if (owedDifference < 0) {
@@ -369,6 +397,8 @@ public class KyudoInvoices {
       String attendanceName = attendanceToPaymentNameMapping.inverse().get(name);
       switch (typeMapping.get(name)) {
         case REGULAR:
+          // Fall through intended
+        case MEMBER:
           emailText = String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
               startDate, endDate, "regular: $40/month",
               owed.getValue(), endDate);
@@ -395,6 +425,8 @@ public class KyudoInvoices {
           String emailText = "";
           switch (typeMapping.get(n)) {
             case REGULAR:
+              // Fall through intended
+            case MEMBER:
               emailText =
                   String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
                       startDate, endDate, "regular: $40/month",
@@ -424,6 +456,8 @@ public class KyudoInvoices {
   private static int getTwoMonthsFree(Type type) {
     switch (type) {
       case REGULAR:
+        // Fall through intended
+      case MEMBER:
         return 80;
       case STUDENT:
         return 40;
@@ -436,6 +470,8 @@ public class KyudoInvoices {
   private static int getBaseFeeByType(Type type) {
     switch (type) {
       case REGULAR:
+        // Fall through intended
+      case MEMBER:
         return 40;
       case STUDENT:
         return 20;
@@ -562,7 +598,8 @@ public class KyudoInvoices {
   private enum Type {
     REGULAR,
     STUDENT,
-    ASSOCIATE;
+    ASSOCIATE,
+    MEMBER;
 
     public static Type fromString(String s) {
       return Type.valueOf(Ascii.toUpperCase(s));
