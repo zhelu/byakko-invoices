@@ -87,9 +87,12 @@ public class KyudoInvoices {
     String membersPath = basePath.isEmpty() ? options.members : basePath + options.members;
     String owedPath = basePath.isEmpty() ? options.owed : basePath + options.owed;
 
-    checkFileTimeStamp(attendancePath, options.endDate);
-    checkFileTimeStamp(paymentPath, options.endDate);
-    checkFileTimeStamp(membersPath, options.endDate);
+    LocalDate startDate = getStartDate();
+    LocalDate endDate = getEndDate(startDate);
+
+    checkFileTimeStamp(attendancePath, endDate);
+    checkFileTimeStamp(paymentPath, endDate);
+    checkFileTimeStamp(membersPath, endDate);
 
     ImmutableTable<Integer, String, String> attendance =
         CsvReader.parseFile(attendancePath, true);
@@ -103,8 +106,8 @@ public class KyudoInvoices {
         CsvReader.parseFile(owedPath, true);
 
     Invoices invoices =
-        processAttendanceAndPayments(attendance, payment, members, waivers, owed, options.startDate,
-            options.endDate);
+        processAttendanceAndPayments(attendance, payment, members, waivers, owed, startDate,
+            endDate);
 
     if (options.sendEmail) {
       Gmail gmailService = createGmailService(options);
@@ -215,7 +218,6 @@ public class KyudoInvoices {
       ImmutableTable<Integer, String, String> waiversTable,
       ImmutableTable<Integer, String, String> owedTable,
       LocalDate startDate, LocalDate endDate) {
-    BiMap<String, String> attendanceToPaymentNameMapping = HashBiMap.create();
     SetMultimap<String, YearMonth> attendanceByMonth = LinkedHashMultimap.create();
     Multiset<String> attendanceCount = HashMultiset.create();
     Map<String, Type> typeMapping = new HashMap<>();
@@ -237,27 +239,8 @@ public class KyudoInvoices {
       String fullName = firstName + " " + lastName;
       typeMapping.put(fullName, type);
       emailMapping.put(fullName, email);
-      for (int j = 0; j < attendanceTable.rowKeySet().size(); ++j) {
-        String attendanceEntry = attendanceTable.get(j, REGULAR_MEMBERS);
-        List<String> attendanceMembers = ATTENDANCE_SPLITTER.splitToList(attendanceEntry);
-        boolean found = false;
-        for (String name : attendanceMembers) {
-          String[] nameSplit = name.split(" ", 2);
-          if (firstName.startsWith(nameSplit[0].replaceAll("\\.", "")) &&
-              lastName.startsWith(nameSplit[1].replaceAll("\\.", ""))) {
-            attendanceToPaymentNameMapping.put(name, fullName);
-            typeMapping.put(name, type);
-            emailMapping.put(name, email);
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          break;
-        }
-      }
       if (type == Type.MEMBER) {
-        fullMembers.add(attendanceToPaymentNameMapping.inverse().get(fullName));
+        fullMembers.add(fullName);
       }
     }
     Set<YearMonth> practiceRange = new HashSet<>();
@@ -299,6 +282,9 @@ public class KyudoInvoices {
     Map<String, Integer> waivers = new HashMap<>();
     for (int i = 0; i < waiversTable.rowKeySet().size(); ++i) {
       String member = waiversTable.get(i, "member");
+      if (member == null || member.isEmpty()) {
+        throw new IllegalStateException("Unknown member: " + member);
+      }
       int amount = Integer.parseInt(waiversTable.get(i, "amount"));
       waivers.put(member, amount);
     }
@@ -332,14 +318,15 @@ public class KyudoInvoices {
     }
     invoiceNames.addAll(attendanceByMonth.keySet());
     invoiceNames.addAll(attendanceCount.elementSet());
-    owedAmounts.keySet().stream().map(attendanceToPaymentNameMapping.inverse()::get).forEach(
-        invoiceNames::add);
+    owedAmounts.keySet().forEach(invoiceNames::add);
     for (String name : invoiceNames) {
       Type type = typeMapping.get(name);
       if (type == null) {
         throw new RuntimeException("No type for member: " + name);
       }
-      String paymentName = attendanceToPaymentNameMapping.get(name);
+      if (name == null) {
+        throw new IllegalStateException("No payment data name found for: " + name);
+      }
       switch (type) {
         case REGULAR:
           // Fall through intended
@@ -347,27 +334,27 @@ public class KyudoInvoices {
           // Fall through intended
         case MEMBER:
           int owedDifference =
-                  attendanceByMonth.get(name).size() * getBaseFeeByType(type) -
-                  paidAmounts.getOrDefault(paymentName, 0) -
-                  waivers.getOrDefault(paymentName, 0);
+              attendanceByMonth.get(name).size() * getBaseFeeByType(type) -
+                  paidAmounts.getOrDefault(name, 0) -
+                  waivers.getOrDefault(name, 0);
           if (owedDifference < 0) {
-            waivers.put(paymentName, -owedDifference);
+            waivers.put(name, -owedDifference);
           } else if (owedDifference > 0) {
-            waivers.remove(paymentName);
-            owedAmounts.merge(paymentName, owedDifference, Integer::sum);
+            waivers.remove(name);
+            owedAmounts.merge(name, owedDifference, Integer::sum);
           } else {
-            waivers.remove(attendanceToPaymentNameMapping.get(name));
+            waivers.remove(name);
           }
           break;
         case ASSOCIATE:
           int owedAssociateDifference = attendanceCount.count(name) * getBaseFeeByType(type) -
-              paidAmounts.getOrDefault(paymentName, 0) -
-              waivers.getOrDefault(paymentName, 0);
+              paidAmounts.getOrDefault(name, 0) -
+              waivers.getOrDefault(name, 0);
           if (owedAssociateDifference < 0) {
-            waivers.put(paymentName, -owedAssociateDifference);
+            waivers.put(name, -owedAssociateDifference);
           } else if (owedAssociateDifference > 0) {
             waivers.remove(name);
-            owedAmounts.merge(paymentName, owedAssociateDifference, Integer::sum);
+            owedAmounts.merge(name, owedAssociateDifference, Integer::sum);
           } else {
             waivers.remove(name);
           }
@@ -394,23 +381,22 @@ public class KyudoInvoices {
     for (Map.Entry<String, Integer> owed : owedAmounts.entrySet()) {
       String emailText = "";
       String name = owed.getKey();
-      String attendanceName = attendanceToPaymentNameMapping.inverse().get(name);
       switch (typeMapping.get(name)) {
         case REGULAR:
           // Fall through intended
         case MEMBER:
-          emailText = String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
+          emailText = String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(name).size(),
               startDate, endDate, "regular: $40/month",
               owed.getValue(), endDate);
           break;
         case ASSOCIATE:
           emailText =
-              String.format(ASSOCIATED_TEMPLATE, attendanceCount.count(attendanceName),
+              String.format(ASSOCIATED_TEMPLATE, attendanceCount.count(name),
                   startDate,
                   endDate, "associate: $15/practice", owed.getValue(), endDate);
           break;
         case STUDENT:
-          emailText = String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
+          emailText = String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(name).size(),
               startDate, endDate, "student: $20/month", owed.getValue(), endDate);
           break;
       }
@@ -418,29 +404,28 @@ public class KyudoInvoices {
           emailMapping.getOrDefault(name, ""), emailText);
     }
     // Also add emails for people who attended practice but owe no money.
-    Stream.concat(attendanceByMonth.keySet().stream(), attendanceCount.elementSet().stream()).map(
-        attendanceToPaymentNameMapping::get).filter(n -> !owedAmounts.containsKey(n)).forEach(
+    Stream.concat(attendanceByMonth.keySet().stream(),
+        attendanceCount.elementSet().stream()).filter(n -> !owedAmounts.containsKey(n)).forEach(
         n -> {
-          String attendanceName = attendanceToPaymentNameMapping.inverse().get(n);
           String emailText = "";
           switch (typeMapping.get(n)) {
             case REGULAR:
               // Fall through intended
             case MEMBER:
               emailText =
-                  String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
+                  String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(n).size(),
                       startDate, endDate, "regular: $40/month",
                       0, endDate);
               break;
             case ASSOCIATE:
               emailText =
-                  String.format(ASSOCIATED_TEMPLATE, attendanceCount.count(attendanceName),
+                  String.format(ASSOCIATED_TEMPLATE, attendanceCount.count(n),
                       startDate,
                       endDate, "associate: $15/practice", 0, endDate);
               break;
             case STUDENT:
               emailText =
-                  String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(attendanceName).size(),
+                  String.format(MONTHLY_TEMPLATE, attendanceByMonth.get(n).size(),
                       startDate, endDate, "student: $20/month", 0, endDate);
               break;
           }
@@ -505,6 +490,16 @@ public class KyudoInvoices {
           "File's (" + path + ") last modified date is before the end date " + endDate +
               " for processing");
     }
+  }
+
+  private static LocalDate getStartDate() {
+    LocalDate localDate = LocalDate.now();
+    return localDate.minusMonths(2).withDayOfMonth(1);
+  }
+
+  private static LocalDate getEndDate(LocalDate startDate) {
+    LocalDate localDate = startDate.plusMonths(2).minusDays(1);
+    return localDate;
   }
 
   private static class Invoices implements Iterable<Invoices.EmailEntry> {
