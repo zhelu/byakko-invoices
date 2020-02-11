@@ -1,30 +1,33 @@
 package lu.zhe.csv;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableTable;
+import com.google.common.collect.*;
 
-import java.io.File;
+import java.io.*;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.regex.*;
 
 /** Reads CSV files. */
 public class CsvReader {
+  // This regexp will still contain wrapping quotes and possibly double quotes inside.
+  private static final String ELEMENT_NAMED_GROUP = "element";
+  static final Pattern PATTERN = Pattern.compile(
+      "(?<=^|,)(?<" + ELEMENT_NAMED_GROUP + ">\"(?:[^\"]|\"\")*\"(?=,|$)|[^\",]*)(?=,|$)",
+      Pattern.MULTILINE);
+
   private CsvReader() {
     // disallow instantiation
   }
 
-  // This regexp will still contain wrapping quotes and possibly double quotes inside.
-  private static final String ELEMENT_NAMED_GROUP = "element";
-  static final Pattern PATTERN = Pattern.compile("(?<=^|,)(?<" + ELEMENT_NAMED_GROUP +
-      ">\"(?:[^\"]|\"\")*\"(?=,|$)|[^\",]*)(?=,|$)", Pattern.MULTILINE);
-
-  public static ImmutableTable<Integer, String, String> parseString(String input,
-                                                                    boolean headerRow) {
+  public static ImmutableTable<Integer, String, String> parseString(
+      String input, boolean headerRow) {
     return parseScanner(new Scanner(input), headerRow);
   }
 
-  /** Parse CSV from file. Returns empty table on error. */
+  /**
+   * Parse CSV from file.
+   *
+   * <p>Returns empty table on error.
+   */
   public static ImmutableTable<Integer, String, String> parseFile(String path, boolean headerRow) {
     try {
       File f = new File(path);
@@ -35,8 +38,8 @@ public class CsvReader {
     }
   }
 
-  public static ImmutableTable<Integer, String, String> parseScanner(Scanner sc,
-                                                                     boolean headerRow) {
+  public static ImmutableTable<Integer, String, String> parseScanner(
+      Scanner sc, boolean headerRow) {
     ImmutableTable.Builder<Integer, String, String> result = ImmutableTable.builder();
     int rowIndex = 0;
     List<String> header = new ArrayList<>();

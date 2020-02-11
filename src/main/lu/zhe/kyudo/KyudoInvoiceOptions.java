@@ -13,6 +13,15 @@ public class KyudoInvoiceOptions extends OptionsBase {
       defaultValue = "")
   public String attendance;
 
+  @Option(name = "sheetsId", help = "Google Sheets Id for attendance file", defaultValue = "")
+  public String sheetsId;
+
+  @Option(name = "startDate",
+      help = "Start date in ISO8601 format, or empty string to start at the beginning of the " +
+          "month two months prior to the current month",
+      defaultValue = "1900-01-01", converter = LocalDateConverter.class)
+  public LocalDate startDate;
+
   @Option(name = "payment", abbrev = 'p', help = "path to payments CSV file",
       defaultValue = "")
   public String payment;
@@ -33,21 +42,17 @@ public class KyudoInvoiceOptions extends OptionsBase {
       defaultValue = "")
   public String basePath;
 
-  @Option(name = "start_date", abbrev = 's', help = "Starting date for processing",
-      defaultValue = "2017-01-01",
-      converter = LocalDateConverter.class)
-  public LocalDate startDate;
-
-  @Option(name = "end_date", abbrev = 'e', help = "Ending date for processing (inclusive)",
-      defaultValue = "2017-01-01",
-      converter = LocalDateConverter.class)
-  public LocalDate endDate;
-
   @Option(name = "oauth_client_id", help = "Oath2 client name", defaultValue = "")
   public String oauthClientId;
 
   @Option(name = "oauth_client_secret", help = "Oath2 client secret", defaultValue = "")
   public String oauthClientSecret;
+
+  @Option(name = "square_access_token", help = "Square API's access token", defaultValue = "")
+  public String squareAccessToken;
+
+  @Option(name = "square_location_id", help = "Location id for the store", defaultValue = "")
+  public String locationId;
 
   @Option(name = "user", abbrev = 'u', help = "Login user", defaultValue = "")
   public String user;

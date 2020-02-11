@@ -1,0 +1,15 @@
+<component name="libraryTable">
+  <library name="com.squareup:square:4.0.0.20191217" type="repository">
+    <properties maven-id="com.squareup:square:4.0.0.20191217" />
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/squareup/square/4.0.0.20191217/square-4.0.0.20191217.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/squareup/okhttp3/okhttp/3.12.1/okhttp-3.12.1.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/squareup/okio/okio/1.15.0/okio-1.15.0.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-databind/2.9.10/jackson-databind-2.9.10.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-core/2.9.10/jackson-core-2.9.10.jar!/" />
+      <root url="jar://$MAVEN_REPOSITORY$/com/fasterxml/jackson/core/jackson-annotations/2.9.10/jackson-annotations-2.9.10.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
