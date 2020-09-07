@@ -49,8 +49,8 @@ public class KyudoInvoiceRunner {
           printEmailsButton.setEnabled(false);
           try {
             KyudoInvoices invoices = KyudoInvoices.create(options,
-                owedDirectory.get() + owedFile.get(),
-                waiversDirectory.get() + waiversFile.get());
+                waiversDirectory.get() + waiversFile.get(),
+                owedDirectory.get() + owedFile.get());
             invoices.run(waiversDirectory.get(), owedDirectory.get());
             System.exit(0);
           } catch (IOException | GeneralSecurityException | ApiException ex) {
@@ -66,8 +66,8 @@ public class KyudoInvoiceRunner {
           printEmailsButton.setEnabled(false);
           try {
             KyudoInvoices invoices = KyudoInvoices.create(options,
-                owedDirectory.get() + owedFile.get(),
-                waiversDirectory.get() + waiversFile.get());
+                waiversDirectory.get() + waiversFile.get(),
+                owedDirectory.get() + owedFile.get());
             invoices.runTest();
             System.exit(0);
           } catch (IOException | GeneralSecurityException | ApiException ex) {

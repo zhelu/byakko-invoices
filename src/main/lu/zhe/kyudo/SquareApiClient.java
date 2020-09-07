@@ -51,7 +51,10 @@ public class SquareApiClient {
     do {
       ListCustomersResponse response = client.getCustomersApi().listCustomers(cursor, null, null);
       cursor = response.getCursor();
-      response.getCustomers().stream().map(Member::create).forEach(result::addMember);
+      if (response.getCustomers() != null) {
+        response.getCustomers().stream().map(Member::create).forEach(result::addMember);
+      }
+
     } while (cursor != null);
     return result.build();
   }
@@ -83,12 +86,14 @@ public class SquareApiClient {
       SearchOrdersRequest request =
           new SearchOrdersRequest(ImmutableList.of(locationId), cursor, query, null, false);
       SearchOrdersResponse response = client.getOrdersApi().searchOrders(request);
-      response
-          .getOrders()
-          .stream()
-          .filter(o -> o.getCustomerId() != null)
-          .forEach(o -> result.putAll(database.idToMember().get(o.getCustomerId()),
-              getPayment(o, database.idToMember().get(o.getCustomerId()))));
+      if (response.getOrders() != null) {
+        response
+            .getOrders()
+            .stream()
+            .filter(o -> o.getCustomerId() != null)
+            .forEach(o -> result.putAll(database.idToMember().get(o.getCustomerId()),
+                getPayment(o, database.idToMember().get(o.getCustomerId()))));
+      }
       cursor = response.getCursor();
     } while (cursor != null);
     return result.build();
