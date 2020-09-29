@@ -14,6 +14,7 @@ import java.util.*;
 
 /** Client to integrating with the Square API. */
 public class SquareApiClient {
+  private static final String AUTOINVOICE_GROUP = "AutoInvoice";
   private final SquareClient client;
 
   @VisibleForTesting
@@ -97,5 +98,74 @@ public class SquareApiClient {
       cursor = response.getCursor();
     } while (cursor != null);
     return result.build();
+  }
+
+  public void createAndSendInvoices(
+      Invoices invoices, String locationId) throws IOException, ApiException {
+    for (Map.Entry<Member, Collection<Payment>> owedEntry : invoices.owed().asMap().entrySet()) {
+      if (owedEntry
+          .getKey()
+          .customer()
+          .getGroups()
+          .stream()
+          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g.getName()))) {
+        continue;
+      }
+      Order order = new Order.Builder(locationId)
+          .customerId(owedEntry.getKey().customer().getId())
+          .lineItems(ImmutableList.of(new OrderLineItem.Builder(String.valueOf(owedEntry
+              .getValue()
+              .size()))
+              .name("Dues")
+              .basePriceMoney(new Money(Long.valueOf(
+                  owedEntry.getValue().iterator().next().amount() * 100), "USD"))
+              .build()))
+          .build();
+      CreateOrderResponse orderResponse = client
+          .getOrdersApi()
+          .createOrder(new CreateOrderRequest(order, locationId, Instant.now().toString()));
+
+      if (orderResponse.getErrors() != null && !orderResponse.getErrors().isEmpty()) {
+        orderResponse
+            .getErrors()
+            .forEach(error -> System.err.println(error.getCategory() + " " + error.getDetail()));
+        continue;
+      }
+
+      CreateInvoiceResponse invoiceResponse = client
+          .getInvoicesApi()
+          .createInvoice(new CreateInvoiceRequest.Builder(new Invoice.Builder()
+              .orderId(orderResponse.getOrder().getId())
+              .locationId(locationId)
+              .primaryRecipient(new InvoiceRecipient.Builder()
+                  .customerId(owedEntry.getKey().customer().getId())
+                  .build())
+              .paymentRequests(ImmutableList.of(new InvoicePaymentRequest.Builder()
+                  .requestMethod("EMAIL")
+                  .requestType("BALANCE")
+                  .dueDate(LocalDate.now().toString())
+                  .tippingEnabled(false)
+                  .build()))
+              .build()).idempotencyKey(Instant.now().toString()).build());
+
+      if (invoiceResponse.getErrors() != null && !invoiceResponse.getErrors().isEmpty()) {
+        invoiceResponse
+            .getErrors()
+            .forEach(error -> System.err.println(error.getCategory() + " " + error.getDetail()));
+        continue;
+      }
+
+      PublishInvoiceResponse publishResponse = client
+          .getInvoicesApi()
+          .publishInvoice(invoiceResponse.getInvoice().getId(),
+              new PublishInvoiceRequest(0, Instant.now().toString()));
+
+      if (publishResponse.getErrors() != null && !publishResponse.getErrors().isEmpty()) {
+        publishResponse
+            .getErrors()
+            .forEach(error -> System.err.println(error.getCategory() + " " + error.getDetail()));
+        continue;
+      }
+    }
   }
 }

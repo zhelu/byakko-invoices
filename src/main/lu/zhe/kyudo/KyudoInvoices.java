@@ -147,6 +147,9 @@ public class KyudoInvoices {
     Invoices invoices = generateInvoices();
     invoices.emails().values().forEach(gmailClient::sendEmail);
     invoices.writeOutCsv(waiversPath, owedPath);
+
+    squareClient.createAndSendInvoices(invoices, options.locationId);
+
     System.out.println("===================================================================");
     System.out.println("WAIVERS:");
     System.out.println(invoices.computeWaivers());
@@ -156,6 +159,7 @@ public class KyudoInvoices {
 
   public void runTest() throws IOException, ApiException {
     Invoices invoices = generateInvoices();
+
     invoices.emails().values().forEach(e -> {
       System.out.println("-------------------------------------------------------------------");
       System.out.println(e.emailTo());
@@ -199,6 +203,7 @@ public class KyudoInvoices {
     }
 
     Invoices invoices = invoicesBuilder.build();
+
     printDiffs(invoices, attendance, paymentsTable, waivers, owed);
 
     return invoices;

@@ -102,8 +102,9 @@ public abstract class Invoices {
         "\n\nBased on your status (%s), previous outstanding dues, and previous payments, " +
             "we believe your outstanding dues are: $%d\n\n" +
             "You can pay by check or credit card after practice, or you can respond to this email " +
-            "if you'd like to receive an invoice and link to pay online via email.\n\n" +
-            "This does not included any payments recorded after %s.\n\n" +
+            "if you'd like to receive an invoice and link to pay online via email. If you signed " +
+            "up for auto-invoicing, you should receive an invoice by email within the next hour." +
+            "\n\n" + "This does not included any payments recorded after %s.\n\n" +
             "If you think this is incorrect, please see Zhe Lu or respond to this message.\n\n" +
             "Thank you!";
     private static final String MONTHLY_TEMPLATE = GREETING_TEMPLATE +
