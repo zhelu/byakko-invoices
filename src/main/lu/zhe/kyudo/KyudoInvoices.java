@@ -144,10 +144,16 @@ public class KyudoInvoices {
   }
 
   public void run(String waiversPath, String owedPath) throws IOException, ApiException {
-    Invoices invoices = generateInvoices();
+    MemberDatabase memberDatabase = squareClient.getMembers();
+    Invoices invoices = generateInvoices(memberDatabase);
     invoices.emails().values().forEach(gmailClient::sendEmail);
     invoices.writeOutCsv(waiversPath, owedPath);
 
+    // Cancel outstanding invoices
+    squareClient.cancelOutstandingInvoicesForAutoInvoicedCustomers(memberDatabase,
+        options.locationId);
+
+    // Send new ones
     squareClient.createAndSendInvoices(invoices, options.locationId);
 
     System.out.println("===================================================================");
@@ -158,7 +164,8 @@ public class KyudoInvoices {
   }
 
   public void runTest() throws IOException, ApiException {
-    Invoices invoices = generateInvoices();
+    MemberDatabase memberDatabase = squareClient.getMembers();
+    Invoices invoices = generateInvoices(memberDatabase);
 
     invoices.emails().values().forEach(e -> {
       System.out.println("-------------------------------------------------------------------");
@@ -174,8 +181,8 @@ public class KyudoInvoices {
     System.out.println();
   }
 
-  private Invoices generateInvoices() throws IOException, ApiException {
-    MemberDatabase memberDatabase = squareClient.getMembers();
+  private Invoices generateInvoices(
+      MemberDatabase memberDatabase) throws IOException, ApiException {
     ListMultimap<Member, Payment> paymentsTable = squareClient.getPayments(memberDatabase,
         options.locationId,
         startDateInclusive,

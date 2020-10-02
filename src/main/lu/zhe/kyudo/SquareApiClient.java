@@ -100,6 +100,61 @@ public class SquareApiClient {
     return result.build();
   }
 
+  public void cancelOutstandingInvoicesForAutoInvoicedCustomers(
+      MemberDatabase memberDatabase, String locationId) throws IOException, ApiException {
+    for (Map.Entry<String, Member> entry : memberDatabase.idToMember().entrySet()) {
+      if (entry
+          .getValue()
+          .customer()
+          .getGroups()
+          .stream()
+          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g.getName()))) {
+        continue;
+      }
+      String cursor = null;
+      do {
+        SearchInvoicesResponse searchResponse = client
+            .getInvoicesApi()
+            .searchInvoices(new SearchInvoicesRequest.Builder(new InvoiceQuery.Builder(new InvoiceFilter.Builder(
+                ImmutableList.of(locationId)).customerIds(ImmutableList.of(entry.getKey())).build())
+                .sort(new InvoiceSort.Builder("INVOICE_SORT_DATE").order("DESC").build())
+                .build()).cursor(cursor).build());
+        cursor = searchResponse.getCursor();
+        if (searchResponse.getErrors() != null && !searchResponse.getErrors().isEmpty()) {
+          searchResponse
+              .getErrors()
+              .forEach(error -> System.err.println(error.getCategory() + " " + error.getDetail()));
+          continue;
+        }
+        if (searchResponse.getInvoices() == null) {
+          continue;
+        }
+        Instant earliestTime = Instant.now().minus(Duration.ofDays(365));
+        for (Invoice invoice : searchResponse.getInvoices()) {
+          if (Instant.parse(invoice.getCreatedAt()).isBefore(earliestTime)) {
+            // Earlier than time boundary
+            break;
+          }
+          if (!invoice.getStatus().equals("UNPAID")) {
+            continue;
+          }
+          String invoiceId = invoice.getId();
+          int version = invoice.getVersion();
+          CancelInvoiceResponse cancelInvoiceResponse = client
+              .getInvoicesApi()
+              .cancelInvoice(invoiceId, new CancelInvoiceRequest.Builder(version).build());
+          if (cancelInvoiceResponse.getErrors() != null &&
+              !cancelInvoiceResponse.getErrors().isEmpty()) {
+            cancelInvoiceResponse
+                .getErrors()
+                .forEach(error -> System.err.println(
+                    error.getCategory() + " " + error.getDetail()));
+          }
+        }
+      } while (cursor != null);
+    }
+  }
+
   public void createAndSendInvoices(
       Invoices invoices, String locationId) throws IOException, ApiException {
     for (Map.Entry<Member, Collection<Payment>> owedEntry : invoices.owed().asMap().entrySet()) {
