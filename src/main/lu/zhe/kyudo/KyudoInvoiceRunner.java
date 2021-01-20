@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.*;
 
 /** Entry point for the invoice generator. */
 public class KyudoInvoiceRunner {
-  public static void main(String[] args) {
+  public static void main(String[] args) throws IOException, GeneralSecurityException {
     OptionsParser parser = OptionsParser.newOptionsParser(KyudoInvoiceOptions.class);
     parser.parseAndExitUponError(args);
     KyudoInvoiceOptions options = parser.getOptions(KyudoInvoiceOptions.class);
@@ -25,99 +25,51 @@ public class KyudoInvoiceRunner {
     private final AtomicReference<String> owedDirectory = new AtomicReference<>();
     private final AtomicReference<String> owedFile = new AtomicReference<>();
 
-    public Gui(KyudoInvoiceOptions options) {
+    private final KyudoInvoices invoices;
+
+    public Gui(KyudoInvoiceOptions options) throws IOException, GeneralSecurityException {
       setTitle("Byakko Kyudojo Invoice Generator");
       setSize(/* width= */ 400, /* height = */300);
       setLayout(new GridLayout(10, 1));
       setResizable(false);
 
-      Label waiversLabel = new Label("Waivers path:");
-      Button waiversButton = new Button("Choose \"waivers\" file");
-      Label owedLabel = new Label("Owed path:");
-      Button owedButton = new Button("Choose \"owed\" file");
-      add(waiversLabel);
-      add(waiversButton);
-      add(owedLabel);
-      add(owedButton);
+      invoices = KyudoInvoices.create(options);
 
-      Button sendEmailsButton = new Button("Compute invoices and send emails");
-      Button printEmailsButton = new Button("Show test emails");
-      sendEmailsButton.addActionListener(new ActionListener() {
+      Button fillSpreadsheet = new Button("Compute invoices and fill spreadsheet");
+      Button emailButton = new Button("Send emails");
+      Checkbox printEmailCheckbox = new Checkbox("Print emails");
+      printEmailCheckbox.setState(false);
+      fillSpreadsheet.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          sendEmailsButton.setEnabled(false);
-          printEmailsButton.setEnabled(false);
           try {
-            KyudoInvoices invoices = KyudoInvoices.create(options,
-                waiversDirectory.get() + waiversFile.get(),
-                owedDirectory.get() + owedFile.get());
-            invoices.run(waiversDirectory.get(), owedDirectory.get());
+            invoices.fillSpreadsheet();
             System.exit(0);
-          } catch (IOException | GeneralSecurityException | ApiException ex) {
+          } catch (IOException | ApiException ex) {
             ex.printStackTrace();
             System.exit(1);
           }
         }
       });
-      printEmailsButton.addActionListener(new ActionListener() {
+      emailButton.addActionListener(new ActionListener() {
         @Override
         public void actionPerformed(ActionEvent e) {
-          sendEmailsButton.setEnabled(false);
-          printEmailsButton.setEnabled(false);
           try {
-            KyudoInvoices invoices = KyudoInvoices.create(options,
-                waiversDirectory.get() + waiversFile.get(),
-                owedDirectory.get() + owedFile.get());
-            invoices.runTest();
+            if (printEmailCheckbox.getState()) {
+              invoices.printEmails();
+            } else {
+              invoices.sendEmails();
+            }
             System.exit(0);
-          } catch (IOException | GeneralSecurityException | ApiException ex) {
+          } catch (IOException | ApiException ex) {
             ex.printStackTrace();
             System.exit(1);
           }
         }
       });
-      sendEmailsButton.setEnabled(false);
-      printEmailsButton.setEnabled(false);
-      add(sendEmailsButton);
-      add(printEmailsButton);
-
-      waiversButton.addActionListener(new ActionListener() {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-          FileDialog fileDialog = new FileDialog(Gui.this, "Select \"waivers\" file.");
-          fileDialog.setDirectory(options.basePath);
-          fileDialog.setVisible(true);
-          if (fileDialog.getDirectory() != null && fileDialog.getFile() != null) {
-            waiversDirectory.set(fileDialog.getDirectory());
-            waiversFile.set(fileDialog.getFile());
-            waiversLabel.setText(
-                "Waivers path: " + fileDialog.getDirectory() + fileDialog.getFile());
-            if (waiversDirectory.get() != null && waiversFile.get() != null &&
-                owedDirectory.get() != null && owedFile.get() != null) {
-              sendEmailsButton.setEnabled(true);
-              printEmailsButton.setEnabled(true);
-            }
-          }
-        }
-      });
-      owedButton.addActionListener(new ActionListener() {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-          FileDialog fileDialog = new FileDialog(Gui.this, "Select \"owed\" file.");
-          fileDialog.setDirectory(options.basePath);
-          fileDialog.setVisible(true);
-          if (fileDialog.getDirectory() != null && fileDialog.getFile() != null) {
-            owedDirectory.set(fileDialog.getDirectory());
-            owedFile.set(fileDialog.getFile());
-            owedLabel.setText("Owed path: " + fileDialog.getDirectory() + fileDialog.getFile());
-            if (waiversDirectory.get() != null && waiversFile.get() != null &&
-                owedDirectory.get() != null && owedFile.get() != null) {
-              sendEmailsButton.setEnabled(true);
-              printEmailsButton.setEnabled(true);
-            }
-          }
-        }
-      });
+      add(fillSpreadsheet);
+      add(emailButton);
+      add(printEmailCheckbox);
 
       addWindowListener(new WindowAdapter() {
         @Override

@@ -3,7 +3,6 @@ package lu.zhe.kyudo;
 import com.google.auto.value.*;
 import com.google.common.collect.*;
 
-import java.io.*;
 import java.time.*;
 import java.util.*;
 
@@ -18,7 +17,9 @@ public abstract class Invoices {
 
   public abstract ImmutableListMultimap<Member, Payment> owed();
 
-  public abstract ImmutableMap<Member, InvoiceEmail> emails();
+  public abstract ImmutableMap<Member, Integer> attendanceCount();
+
+  public abstract ImmutableMap<Member, Integer> payments();
 
   public String computeWaivers() {
     StringBuilder result = new StringBuilder();
@@ -44,33 +45,19 @@ public abstract class Invoices {
     return result.toString();
   }
 
-  public void writeOutCsv(String waiversPath, String owedPath) {
-    Instant now = Instant.now();
-    try (FileWriter waiverWriter = new FileWriter(new File(
-        waiversPath + "waiver-" + now.toString().replaceAll(":", "_") + ".csv"))) {
-      waiverWriter.append(computeWaivers());
-    } catch (IOException e) {
-      System.err.println("Unable to write out new waivers file");
-    }
-    try (FileWriter owedWriter = new FileWriter(new File(
-        owedPath + "owed-" + now.toString().replaceAll(":", "_") + ".csv"))) {
-      owedWriter.append(computeOwed());
-    } catch (IOException e) {
-      System.err.println("Unable to write out new waivers file");
-    }
-  }
-
   @AutoValue.Builder
   public static abstract class Builder {
     protected abstract ImmutableListMultimap.Builder<Member, Payment> waiversBuilder();
 
     protected abstract ImmutableListMultimap.Builder<Member, Payment> owedBuilder();
 
-    protected abstract ImmutableMap.Builder<Member, InvoiceEmail> emailsBuilder();
+    protected abstract ImmutableMap.Builder<Member, Integer> attendanceCountBuilder();
+
+    protected abstract ImmutableMap.Builder<Member, Integer> paymentsBuilder();
 
     public void processMember(
         Member member, int attendanceCount, List<Payment> payments, List<Payment> waivers,
-        List<Payment> owed, LocalDate startDate, LocalDate endDate) {
+        List<Payment> owed) {
       int waiverAmount = waivers.stream().mapToInt(Payment::amount).sum() +
           payments.stream().mapToInt(Payment::amount).sum();
       int owedAmount =
@@ -87,8 +74,8 @@ public abstract class Invoices {
 
       waiversBuilder().putAll(member, newWaivers);
       owedBuilder().putAll(member, newOwed);
-      emailsBuilder().put(member,
-          InvoiceEmail.create(member, attendanceCount, newOwed, startDate, endDate));
+      attendanceCountBuilder().put(member, attendanceCount);
+      paymentsBuilder().put(member, payments.stream().mapToInt(Payment::amount).sum());
     }
 
     public abstract Invoices build();
@@ -114,7 +101,7 @@ public abstract class Invoices {
         "Our records indicate that you attended %d practice(s) between %s and %s" + DUES_TEMPLATE;
 
     public static InvoiceEmail create(
-        Member member, int count, List<Payment> owed, LocalDate startDate, LocalDate endDate) {
+        Member member, int count, int owed, LocalDate startDate, LocalDate endDate) {
       String emailText = "";
       switch (member.type()) {
         case REGULAR:
@@ -125,7 +112,7 @@ public abstract class Invoices {
               startDate,
               endDate,
               "regular: $40/month",
-              owed.stream().mapToInt(Payment::amount).sum(),
+              owed,
               endDate);
           break;
         case ASSOCIATE:
@@ -134,7 +121,7 @@ public abstract class Invoices {
               startDate,
               endDate,
               "associate: $15/practice",
-              owed.stream().mapToInt(Payment::amount).sum(),
+              owed,
               endDate);
           break;
         case STUDENT:
@@ -143,7 +130,7 @@ public abstract class Invoices {
               startDate,
               endDate,
               "student: $20/month",
-              owed.stream().mapToInt(Payment::amount).sum(),
+              owed,
               endDate);
           break;
       }
@@ -161,5 +148,11 @@ public abstract class Invoices {
     public abstract String emailTo();
 
     public abstract String emailText();
+
+    @Override
+    public String toString() {
+      return "-----------------------------------------\n" + "TO: " + emailTo() + "\n" +
+          emailText() + "\n" + "-----------------------------------------\n";
+    }
   }
 }

@@ -1,41 +1,23 @@
 package lu.zhe.kyudo;
 
-import com.google.devtools.common.options.Converter;
-import com.google.devtools.common.options.Option;
-import com.google.devtools.common.options.OptionsBase;
-import com.google.devtools.common.options.OptionsParsingException;
+import com.google.devtools.common.options.*;
 
-import java.time.LocalDate;
+import java.time.*;
 
 /** Command line options for processing attendance, payment information, to generate invoices. */
 public class KyudoInvoiceOptions extends OptionsBase {
-  @Option(name = "attendance", abbrev = 'a', help = "path to attendance CSV file",
+  @Option(name = "attendanceSheetsId", help = "Google Sheets Id for attendance file",
       defaultValue = "")
-  public String attendance;
+  public String attendanceSheetsId;
 
-  @Option(name = "sheetsId", help = "Google Sheets Id for attendance file", defaultValue = "")
-  public String sheetsId;
+  @Option(name = "invoiceSheetsId", help = "Google Sheets Id for invoice file", defaultValue = "")
+  public String invoiceSheetsId;
 
   @Option(name = "startDate",
       help = "Start date in ISO8601 format, or empty string to start at the beginning of the " +
-          "month two months prior to the current month",
-      defaultValue = "1900-01-01", converter = LocalDateConverter.class)
+          "month two months prior to the current month", defaultValue = "1900-01-01",
+      converter = LocalDateConverter.class)
   public LocalDate startDate;
-
-  @Option(name = "payment", abbrev = 'p', help = "path to payments CSV file",
-      defaultValue = "")
-  public String payment;
-
-  @Option(name = "waivers", abbrev = 'w', help = "path to special waivers CSV file",
-      defaultValue = "")
-  public String waivers;
-
-  @Option(name = "owed", abbrev = 'o', help = "path to CSV listing owed counts", defaultValue = "")
-  public String owed;
-
-  @Option(name = "members", abbrev = 'm', help = "path to members CSV file",
-      defaultValue = "")
-  public String members;
 
   @Option(name = "base_path", abbrev = 'b',
       help = "base path shared by all other file paths. It will be prepended when resolving files",
@@ -56,9 +38,6 @@ public class KyudoInvoiceOptions extends OptionsBase {
 
   @Option(name = "user", abbrev = 'u', help = "Login user", defaultValue = "")
   public String user;
-
-  @Option(name = "send_email", help = "Actually send emails", defaultValue = "false")
-  public boolean sendEmail;
 
   public static class LocalDateConverter implements Converter<LocalDate> {
     @Override

@@ -10,7 +10,6 @@ import com.google.common.annotations.*;
 import com.google.common.base.*;
 import com.google.common.collect.*;
 import com.squareup.square.exceptions.*;
-import lu.zhe.csv.*;
 
 import java.io.*;
 import java.security.*;
@@ -28,27 +27,21 @@ public class KyudoInvoices {
   private final SquareApiClient squareClient;
   private final LocalDate startDateInclusive;
   private final LocalDate endDateInclusive;
-  private final String owedPath;
-  private final String waiversPath;
 
   @VisibleForTesting
   KyudoInvoices(
       KyudoInvoiceOptions options, GmailClient gmailClient, SheetsClient sheetsClient,
-      SquareApiClient squareClient, LocalDate startDateInclusive, LocalDate endDateInclusive,
-      String owedPath, String waiversPath) {
+      SquareApiClient squareClient, LocalDate startDateInclusive, LocalDate endDateInclusive) {
     this.options = options;
     this.gmailClient = gmailClient;
     this.sheetsClient = sheetsClient;
     this.squareClient = squareClient;
     this.startDateInclusive = startDateInclusive;
     this.endDateInclusive = endDateInclusive;
-    this.owedPath = owedPath;
-    this.waiversPath = waiversPath;
   }
 
   public static KyudoInvoices create(
-      KyudoInvoiceOptions options, String waiversPath,
-      String owedPath) throws IOException, GeneralSecurityException {
+      KyudoInvoiceOptions options) throws IOException, GeneralSecurityException {
     if (options.oauthClientId.isEmpty()) {
       throw new IllegalArgumentException("No Google OAuth client id specified");
     }
@@ -58,8 +51,11 @@ public class KyudoInvoices {
     if (options.user.isEmpty()) {
       throw new IllegalArgumentException("No Gmail user specified");
     }
-    if (options.sheetsId.isEmpty()) {
+    if (options.attendanceSheetsId.isEmpty()) {
       throw new IllegalArgumentException("No attendance Sheets id specified");
+    }
+    if (options.invoiceSheetsId.isEmpty()) {
+      throw new IllegalArgumentException("No invoice Sheets id specified");
     }
     if (options.locationId.isEmpty()) {
       throw new IllegalArgumentException("No Square location id specified");
@@ -77,9 +73,7 @@ public class KyudoInvoices {
         SheetsClient.create(credential),
         SquareApiClient.create(options.squareAccessToken),
         startDate,
-        endDate,
-        owedPath,
-        waiversPath);
+        endDate);
   }
 
   private static ListMultimap<Member, Payment> parsePaymentsFromCsv(
@@ -103,7 +97,7 @@ public class KyudoInvoices {
         options.oauthClientSecret,
         ImmutableList.of("https://www.googleapis.com/auth/gmail.compose",
             "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/spreadsheets.readonly")).build();
+            "https://www.googleapis.com/auth/spreadsheets")).build();
     return new AuthorizationCodeInstalledApp(flow,
         new LocalServerReceiver()).authorize(options.user);
   }
@@ -117,44 +111,26 @@ public class KyudoInvoices {
     return startDate.plusMonths(2).minusDays(1);
   }
 
-  private static void printDiffs(
-      Invoices invoices, Multiset<Member> attendance, ListMultimap<Member, Payment> paymentsTable,
-      ListMultimap<Member, Payment> waivers, ListMultimap<Member, Payment> owed) {
-    System.out.println("==================================================================");
-    System.out.println("DIFFS:");
-    System.out.println("==================================================================");
-    for (Member member : invoices.emails().keySet()) {
-      System.out.println(member.name() + "(" + member.type() + ")" + ": ");
-      System.out.println("\tBillable periods: " + attendance.count(member) + " -> " +
-          (attendance.count(member) * member.type().value()));
-      System.out.println("\tOwed: " + COMMA_JOINER.join(paymentsTable.get(member)) + " -> " +
-          owed.get(member).stream().mapToInt(Payment::amount).sum());
-      System.out.println("\tWaivers: " + COMMA_JOINER.join(waivers.get(member)) + " -> " +
-          waivers.get(member).stream().mapToInt(Payment::amount).sum());
-      System.out.println("\tPayments: " + COMMA_JOINER.join(paymentsTable.get(member)) + " -> " +
-          paymentsTable.get(member).stream().mapToInt(Payment::amount).sum());
-      System.out.println("------------------------------------------------------------------");
-      System.out.println(
-          "\tNet owed: " + invoices.owed().get(member).stream().mapToInt(Payment::amount).sum());
-      System.out.println("\tNet banked: " +
-          invoices.waivers().get(member).stream().mapToInt(Payment::amount).sum());
-      System.out.println("==================================================================");
-    }
-    System.out.println("==================================================================");
-  }
-
-  public void run(String waiversPath, String owedPath) throws IOException, ApiException {
+  public void fillSpreadsheet() throws IOException, ApiException {
     MemberDatabase memberDatabase = squareClient.getMembers();
-    Invoices invoices = generateInvoices(memberDatabase);
-    invoices.emails().values().forEach(gmailClient::sendEmail);
-    invoices.writeOutCsv(waiversPath, owedPath);
 
+    SheetsClient.Accounts accounts =
+        sheetsClient.readAccounts(memberDatabase, options.invoiceSheetsId, endDateInclusive);
+
+    Invoices invoices = generateInvoices(memberDatabase, accounts);
+
+    sheetsClient.writeInvoices(options.invoiceSheetsId, invoices, accounts, startDateInclusive);
+    //    invoices.emails().values().forEach(gmailClient::sendEmail);
+    //    invoices.writeOutCsv(waiversPath, owedPath);
+
+    /*
     // Cancel outstanding invoices
     squareClient.cancelOutstandingInvoicesForAutoInvoicedCustomers(memberDatabase,
         options.locationId);
 
     // Send new ones
     squareClient.createAndSendInvoices(invoices, options.locationId);
+    */
 
     System.out.println("===================================================================");
     System.out.println("WAIVERS:");
@@ -163,56 +139,55 @@ public class KyudoInvoices {
     System.out.println(invoices.computeOwed());
   }
 
-  public void runTest() throws IOException, ApiException {
+  public void printEmails() throws IOException, ApiException {
     MemberDatabase memberDatabase = squareClient.getMembers();
-    Invoices invoices = generateInvoices(memberDatabase);
 
-    invoices.emails().values().forEach(e -> {
-      System.out.println("-------------------------------------------------------------------");
-      System.out.println(e.emailTo());
-      System.out.println(e.emailText());
-      System.out.println();
-    });
-    System.out.println("===================================================================");
-    System.out.println("WAIVERS:");
-    System.out.println(invoices.computeWaivers());
-    System.out.println("OWED:");
-    System.out.println(invoices.computeOwed());
-    System.out.println();
+    List<Invoices.InvoiceEmail> emails = sheetsClient.generateEmails(options.invoiceSheetsId,
+        memberDatabase,
+        startDateInclusive,
+        endDateInclusive);
+
+    for (Invoices.InvoiceEmail email : emails) {
+      System.out.println(email);
+    }
+  }
+
+  public void sendEmails() throws IOException, ApiException {
+    MemberDatabase memberDatabase = squareClient.getMembers();
+
+    List<Invoices.InvoiceEmail> emails = sheetsClient.generateEmails(options.invoiceSheetsId,
+        memberDatabase,
+        startDateInclusive,
+        endDateInclusive);
+
+    emails.forEach(gmailClient::sendEmail);
   }
 
   private Invoices generateInvoices(
-      MemberDatabase memberDatabase) throws IOException, ApiException {
+      MemberDatabase memberDatabase,
+      SheetsClient.Accounts accounts) throws IOException, ApiException {
     ListMultimap<Member, Payment> paymentsTable = squareClient.getPayments(memberDatabase,
         options.locationId,
         startDateInclusive,
         endDateInclusive);
 
     Multiset<Member> attendance = sheetsClient.readAttendanceSheet(memberDatabase,
-        options.sheetsId,
+        options.attendanceSheetsId,
         startDateInclusive,
         endDateInclusive);
 
-    ImmutableTable<Integer, String, String> waiversCsv = CsvReader.parseFile(waiversPath, true);
-    ImmutableTable<Integer, String, String> owedCsv = CsvReader.parseFile(owedPath, true);
-    ListMultimap<Member, Payment> waivers = parsePaymentsFromCsv(waiversCsv, memberDatabase);
-    ListMultimap<Member, Payment> owed = parsePaymentsFromCsv(owedCsv, memberDatabase);
+    ListMultimap<Member, Payment> waivers = accounts.waivers();
+    ListMultimap<Member, Payment> owed = accounts.owed();
 
     Invoices.Builder invoicesBuilder = Invoices.builder();
-    for (Member member : Sets.union(attendance.elementSet(), owed.keySet())) {
+    for (Member member : Sets.union(attendance.elementSet(), paymentsTable.keySet())) {
       invoicesBuilder.processMember(member,
           attendance.count(member),
           paymentsTable.get(member),
           waivers.get(member),
-          owed.get(member),
-          startDateInclusive,
-          endDateInclusive);
+          owed.get(member));
     }
 
-    Invoices invoices = invoicesBuilder.build();
-
-    printDiffs(invoices, attendance, paymentsTable, waivers, owed);
-
-    return invoices;
+    return invoicesBuilder.build();
   }
 }
