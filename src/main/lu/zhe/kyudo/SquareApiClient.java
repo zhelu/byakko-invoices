@@ -46,16 +46,34 @@ public class SquareApiClient {
         Payment.create(member, type)));
   }
 
+  public ImmutableMap<String, String> getMemberGroups() throws IOException, ApiException {
+    ImmutableMap.Builder<String, String> groups = ImmutableMap.builder();
+    String cursor = null;
+    do {
+      ListCustomerGroupsResponse response =
+          client.getCustomerGroupsApi().listCustomerGroups(cursor);
+      for (CustomerGroup group : response.getGroups()) {
+        groups.put(group.getId(), group.getName());
+      }
+      cursor = response.getCursor();
+    } while (cursor != null);
+    return groups.build();
+  }
+
   public MemberDatabase getMembers() throws IOException, ApiException {
+    Map<String, String> groups = getMemberGroups();
     MemberDatabase.Builder result = MemberDatabase.builder();
     String cursor = null;
     do {
       ListCustomersResponse response = client.getCustomersApi().listCustomers(cursor, null, null);
       cursor = response.getCursor();
       if (response.getCustomers() != null) {
-        response.getCustomers().stream().map(Member::create).forEach(result::addMember);
+        response
+            .getCustomers()
+            .stream()
+            .map(c -> Member.create(c, groups))
+            .forEach(result::addMember);
       }
-
     } while (cursor != null);
     return result.build();
   }
@@ -106,9 +124,9 @@ public class SquareApiClient {
       if (entry
           .getValue()
           .customer()
-          .getGroups()
+          .getGroupIds()
           .stream()
-          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g.getName()))) {
+          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g))) {
         continue;
       }
       String cursor = null;
@@ -156,29 +174,32 @@ public class SquareApiClient {
   }
 
   public void createAndSendInvoices(
-      Invoices invoices, String locationId) throws IOException, ApiException {
-    for (Map.Entry<Member, Collection<Payment>> owedEntry : invoices.owed().asMap().entrySet()) {
-      if (owedEntry
-          .getKey()
+      List<Invoices.InvoiceEmail> invoices, String locationId) throws IOException, ApiException {
+    for (Invoices.InvoiceEmail entry : invoices) {
+      if (entry
+          .member()
           .customer()
-          .getGroups()
+          .getGroupIds()
           .stream()
-          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g.getName()))) {
+          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g))) {
         continue;
       }
+
+      if (entry.owed().isEmpty()) {
+        continue;
+      }
+
       Order order = new Order.Builder(locationId)
-          .customerId(owedEntry.getKey().customer().getId())
-          .lineItems(ImmutableList.of(new OrderLineItem.Builder(String.valueOf(owedEntry
-              .getValue()
-              .size()))
+          .customerId(entry.member().customer().getId())
+          .lineItems(ImmutableList.of(new OrderLineItem.Builder(String.valueOf(entry.owed().size()))
               .name("Dues")
-              .basePriceMoney(new Money(Long.valueOf(
-                  owedEntry.getValue().iterator().next().amount() * 100), "USD"))
+              .basePriceMoney(new Money(Long.valueOf(entry.owed().iterator().next().amount() * 100),
+                  "USD"))
               .build()))
           .build();
       CreateOrderResponse orderResponse = client
           .getOrdersApi()
-          .createOrder(new CreateOrderRequest(order, locationId, Instant.now().toString()));
+          .createOrder(new CreateOrderRequest(order, Instant.now().toString()));
 
       if (orderResponse.getErrors() != null && !orderResponse.getErrors().isEmpty()) {
         orderResponse
@@ -193,7 +214,7 @@ public class SquareApiClient {
               .orderId(orderResponse.getOrder().getId())
               .locationId(locationId)
               .primaryRecipient(new InvoiceRecipient.Builder()
-                  .customerId(owedEntry.getKey().customer().getId())
+                  .customerId(entry.member().customer().getId())
                   .build())
               .paymentRequests(ImmutableList.of(new InvoicePaymentRequest.Builder()
                   .requestMethod("EMAIL")
@@ -201,6 +222,10 @@ public class SquareApiClient {
                   .dueDate(LocalDate.now().toString())
                   .tippingEnabled(false)
                   .build()))
+              .acceptedPaymentMethods(new InvoiceAcceptedPaymentMethods.Builder()
+                  .card(true)
+                  .bankAccount(true)
+                  .build())
               .build()).idempotencyKey(Instant.now().toString()).build());
 
       if (invoiceResponse.getErrors() != null && !invoiceResponse.getErrors().isEmpty()) {

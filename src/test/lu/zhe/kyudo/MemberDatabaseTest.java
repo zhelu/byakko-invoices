@@ -6,9 +6,10 @@ import org.junit.*;
 import org.junit.runner.*;
 import org.junit.runners.*;
 
-import static com.google.common.truth.Truth.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import java.util.*;
+
+import static com.google.common.truth.Truth.*;
+import static org.mockito.Mockito.*;
 
 /** Unit tests for {@link MemberDatabase}. */
 @RunWith(JUnit4.class)
@@ -23,15 +24,13 @@ public class MemberDatabaseTest {
     when(johnDoe.getFamilyName()).thenReturn("Doe");
     when(janeSmith.getGivenName()).thenReturn("Jane");
     when(janeSmith.getFamilyName()).thenReturn("Smith");
-    CustomerGroupInfo group = mock(CustomerGroupInfo.class);
-    when(group.getName()).thenReturn("MEMBER");
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(group));
-    when(janeSmith.getGroups()).thenReturn(ImmutableList.of(group));
-
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("regular"));
+    when(janeSmith.getGroupIds()).thenReturn(ImmutableList.of("regular"));
+    Map<String, String> groups = ImmutableMap.of("regular", "REGULAR");
     MemberDatabase.Builder builder = MemberDatabase.builder();
 
-    Member johnDoeMember = Member.create(johnDoe);
-    Member janeSmithMember = Member.create(janeSmith);
+    Member johnDoeMember = Member.create(johnDoe, groups);
+    Member janeSmithMember = Member.create(janeSmith, groups);
     builder.addMember(johnDoeMember);
     builder.addMember(janeSmithMember);
     MemberDatabase database = builder.build();

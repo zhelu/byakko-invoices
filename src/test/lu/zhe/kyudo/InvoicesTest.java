@@ -8,6 +8,7 @@ import org.junit.runner.*;
 import org.junit.runners.*;
 
 import java.time.*;
+import java.util.*;
 
 import static com.google.common.truth.Truth.*;
 import static org.mockito.Mockito.*;
@@ -39,27 +40,26 @@ public class InvoicesTest {
     when(aliceEve.getGivenName()).thenReturn("Alice");
     when(aliceEve.getFamilyName()).thenReturn("Eve");
     when(aliceEve.getEmailAddress()).thenReturn("aliceeve@gmail.com");
-    CustomerGroupInfo regularGroup = mock(CustomerGroupInfo.class);
-    when(regularGroup.getName()).thenReturn("REGULAR");
-    CustomerGroupInfo associateGroup = mock(CustomerGroupInfo.class);
-    when(associateGroup.getName()).thenReturn("ASSOCIATE");
-    CustomerGroupInfo studentGroup = mock(CustomerGroupInfo.class);
-    when(studentGroup.getName()).thenReturn("STUDENT");
-    CustomerGroupInfo memberGroup = mock(CustomerGroupInfo.class);
-    when(memberGroup.getName()).thenReturn("MEMBER");
 
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(regularGroup));
-    when(janeDoe.getGroups()).thenReturn(ImmutableList.of(associateGroup));
-    when(bobSmith.getGroups()).thenReturn(ImmutableList.of(studentGroup));
-    when(aliceEve.getGroups()).thenReturn(ImmutableList.of(memberGroup));
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("regular"));
+    when(janeDoe.getGroupIds()).thenReturn(ImmutableList.of("associate"));
+    when(bobSmith.getGroupIds()).thenReturn(ImmutableList.of("student"));
+    when(aliceEve.getGroupIds()).thenReturn(ImmutableList.of("member"));
 
-    Member johnDoeMember = Member.create(johnDoe);
-    Member janeDoeMember = Member.create(janeDoe);
-    Member bobSmithMember = Member.create(bobSmith);
-    Member aliceEveMember = Member.create(aliceEve);
+    Map<String, String> groups = ImmutableMap.of("regular",
+        "REGULAR",
+        "associate",
+        "ASSOCIATE",
+        "student",
+        "STUDENT",
+        "member",
+        "MEMBER");
 
-    LocalDate startDate = LocalDate.parse("2020-01-01");
-    LocalDate endDate = LocalDate.parse("2020-02-29");
+    Member johnDoeMember = Member.create(johnDoe, groups);
+    Member janeDoeMember = Member.create(janeDoe, groups);
+    Member bobSmithMember = Member.create(bobSmith, groups);
+    Member aliceEveMember = Member.create(aliceEve, groups);
+
     Invoices.Builder invoicesBuilder = Invoices.builder();
     invoicesBuilder.processMember(johnDoeMember,
         2,
@@ -67,8 +67,7 @@ public class InvoicesTest {
             Payment.create(johnDoeMember, Payment.PaymentType.DUES)),
         ImmutableList.of(Payment.create(johnDoeMember, Payment.PaymentType.FIRST_SHOT)),
         ImmutableList.of());
-    invoicesBuilder.processMember(janeDoeMember,
-        3,
+    invoicesBuilder.processMember(janeDoeMember, 3,
         ImmutableList.of(Payment.create(janeDoeMember, Payment.PaymentType.DUES),
             Payment.create(janeDoeMember, Payment.PaymentType.DUES),
             Payment.create(janeDoeMember, Payment.PaymentType.DUES)),
@@ -122,24 +121,23 @@ public class InvoicesTest {
     when(aliceEve.getGivenName()).thenReturn("Alice");
     when(aliceEve.getFamilyName()).thenReturn("Eve");
     when(aliceEve.getEmailAddress()).thenReturn("aliceeve@gmail.com");
-    CustomerGroupInfo regularGroup = mock(CustomerGroupInfo.class);
-    when(regularGroup.getName()).thenReturn("REGULAR");
-    CustomerGroupInfo associateGroup = mock(CustomerGroupInfo.class);
-    when(associateGroup.getName()).thenReturn("ASSOCIATE");
-    CustomerGroupInfo studentGroup = mock(CustomerGroupInfo.class);
-    when(studentGroup.getName()).thenReturn("STUDENT");
-    CustomerGroupInfo memberGroup = mock(CustomerGroupInfo.class);
-    when(memberGroup.getName()).thenReturn("MEMBER");
 
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(regularGroup));
-    when(janeDoe.getGroups()).thenReturn(ImmutableList.of(associateGroup));
-    when(bobSmith.getGroups()).thenReturn(ImmutableList.of(studentGroup));
-    when(aliceEve.getGroups()).thenReturn(ImmutableList.of(memberGroup));
-
-    Member johnDoeMember = Member.create(johnDoe);
-    Member janeDoeMember = Member.create(janeDoe);
-    Member bobSmithMember = Member.create(bobSmith);
-    Member aliceEveMember = Member.create(aliceEve);
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("regular"));
+    when(janeDoe.getGroupIds()).thenReturn(ImmutableList.of("associate"));
+    when(bobSmith.getGroupIds()).thenReturn(ImmutableList.of("student"));
+    when(aliceEve.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    Map<String, String> groups = ImmutableMap.of("regular",
+        "REGULAR",
+        "associate",
+        "ASSOCIATE",
+        "student",
+        "STUDENT",
+        "member",
+        "MEMBER");
+    Member johnDoeMember = Member.create(johnDoe, groups);
+    Member janeDoeMember = Member.create(janeDoe, groups);
+    Member bobSmithMember = Member.create(bobSmith, groups);
+    Member aliceEveMember = Member.create(aliceEve, groups);
 
     LocalDate startDate = LocalDate.parse("2020-01-01");
     LocalDate endDate = LocalDate.parse("2020-02-29");

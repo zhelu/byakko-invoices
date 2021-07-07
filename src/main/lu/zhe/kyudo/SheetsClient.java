@@ -19,9 +19,6 @@ import java.util.function.Supplier;
 
 /** Client for interfacing with Google sheets to process attendance. */
 public class SheetsClient {
-  private static final Splitter ATTENDANCE_SPLITTER = Splitter.on(", ");
-  private static final DateTimeFormatter ATTENDANCE_DATE_FORMATTER =
-      DateTimeFormatter.ofPattern("M/d/yyyy");
   static final ImmutableList<Object> INVOICE_SHEET_HEADERS = ImmutableList.of("member",
       "status",
       "starting amount",
@@ -30,6 +27,9 @@ public class SheetsClient {
       "charges",
       "payments",
       "ending amount");
+  private static final Splitter ATTENDANCE_SPLITTER = Splitter.on(", ");
+  private static final DateTimeFormatter ATTENDANCE_DATE_FORMATTER =
+      DateTimeFormatter.ofPattern("M/d/yyyy");
   private final Sheets sheets;
 
   @VisibleForTesting
@@ -199,11 +199,11 @@ public class SheetsClient {
     ImmutableList.Builder<Invoices.InvoiceEmail> emails = ImmutableList.builder();
     for (List<Object> row : response.getValues()) {
       Member member = memberDatabase.nameToMember().get(row.get(0));
-      int owed = -(int) row.get(7);
+      int owed = -Integer.parseInt(String.valueOf(row.get(7)));
       if (owed < 0) {
         owed = 0;
       }
-      int attendance = (int) row.get(3);
+      int attendance = Integer.parseInt(String.valueOf(row.get(3)));
       if (owed > 0 || attendance > 0) {
         emails.add(Invoices.InvoiceEmail.create(member, attendance, owed, startDate, endDate));
       }

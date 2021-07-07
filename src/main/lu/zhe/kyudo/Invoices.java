@@ -142,12 +142,19 @@ public abstract class Invoices {
         throw new IllegalStateException("No email address");
       }
       return new lu.zhe.kyudo.AutoValue_Invoices_InvoiceEmail(member.customer().getEmailAddress(),
-          emailText);
+          emailText,
+          member,
+          ImmutableList.copyOf(Collections.nCopies(owed / member.type().value(),
+              Payment.create(member, Payment.PaymentType.DUES))));
     }
 
     public abstract String emailTo();
 
     public abstract String emailText();
+
+    public abstract Member member();
+
+    public abstract ImmutableList<Payment> owed();
 
     @Override
     public String toString() {

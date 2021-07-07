@@ -50,26 +50,25 @@ public class SheetsClientTest {
     when(bobSmith.getFamilyName()).thenReturn("Smith");
     when(aliceEve.getGivenName()).thenReturn("Alice");
     when(aliceEve.getFamilyName()).thenReturn("Eve");
-    CustomerGroupInfo regularGroup = mock(CustomerGroupInfo.class);
-    when(regularGroup.getName()).thenReturn("REGULAR");
-    CustomerGroupInfo associateGroup = mock(CustomerGroupInfo.class);
-    when(associateGroup.getName()).thenReturn("ASSOCIATE");
-    CustomerGroupInfo studentGroup = mock(CustomerGroupInfo.class);
-    when(studentGroup.getName()).thenReturn("STUDENT");
-    CustomerGroupInfo memberGroup = mock(CustomerGroupInfo.class);
-    when(memberGroup.getName()).thenReturn("MEMBER");
 
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(regularGroup));
-    when(janeDoe.getGroups()).thenReturn(ImmutableList.of(associateGroup));
-    when(bobSmith.getGroups()).thenReturn(ImmutableList.of(studentGroup));
-    when(aliceEve.getGroups()).thenReturn(ImmutableList.of(memberGroup));
-
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("regular"));
+    when(janeDoe.getGroupIds()).thenReturn(ImmutableList.of("associate"));
+    when(bobSmith.getGroupIds()).thenReturn(ImmutableList.of("student"));
+    when(aliceEve.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    Map<String, String> groups = ImmutableMap.of("regular",
+        "REGULAR",
+        "associate",
+        "ASSOCIATE",
+        "student",
+        "STUDENT",
+        "member",
+        "MEMBER");
     MemberDatabase.Builder builder = MemberDatabase.builder();
 
-    johnDoeMember = Member.create(johnDoe);
-    janeDoeMember = Member.create(janeDoe);
-    bobSmithMember = Member.create(bobSmith);
-    aliceEveMember = Member.create(aliceEve);
+    johnDoeMember = Member.create(johnDoe, groups);
+    janeDoeMember = Member.create(janeDoe, groups);
+    bobSmithMember = Member.create(bobSmith, groups);
+    aliceEveMember = Member.create(aliceEve, groups);
     builder.addMember(johnDoeMember);
     builder.addMember(janeDoeMember);
     builder.addMember(bobSmithMember);

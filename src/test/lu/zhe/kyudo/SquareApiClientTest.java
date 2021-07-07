@@ -13,6 +13,7 @@ import org.mockito.stubbing.*;
 
 import java.io.*;
 import java.time.*;
+import java.util.*;
 
 import static com.google.common.truth.Truth.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -40,14 +41,10 @@ public class SquareApiClientTest {
     when(janeDoe.getFamilyName()).thenReturn("Doe");
     when(bobSmith.getGivenName()).thenReturn("Bob");
     when(bobSmith.getFamilyName()).thenReturn("Smith");
-    CustomerGroupInfo group = mock(CustomerGroupInfo.class);
-    when(group.getName()).thenReturn("MEMBER");
-    CustomerGroupInfo groupAssociate = mock(CustomerGroupInfo.class);
-    when(groupAssociate.getName()).thenReturn("ASSOCIATE");
 
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(group));
-    when(janeDoe.getGroups()).thenReturn(ImmutableList.of(group));
-    when(bobSmith.getGroups()).thenReturn(ImmutableList.of(groupAssociate));
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    when(janeDoe.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    when(bobSmith.getGroupIds()).thenReturn(ImmutableList.of("associate"));
 
     when(squareClient.getCustomersApi()).thenReturn(api);
     when(api.listCustomers(any(), any(), any())).thenAnswer(new Answer() {
@@ -64,6 +61,18 @@ public class SquareApiClientTest {
         throw new IllegalStateException("Unhandled cursor state");
       }
     });
+
+    CustomerGroupsApi groupsApi = mock(CustomerGroupsApi.class);
+    when(squareClient.getCustomerGroupsApi()).thenReturn(groupsApi);
+    ListCustomerGroupsResponse response = mock(ListCustomerGroupsResponse.class);
+    when(groupsApi.listCustomerGroups(any())).thenReturn(response);
+    CustomerGroup memberGroup = mock(CustomerGroup.class);
+    when(memberGroup.getId()).thenReturn("member");
+    when(memberGroup.getName()).thenReturn("MEMBER");
+    CustomerGroup associateGroup = mock(CustomerGroup.class);
+    when(associateGroup.getId()).thenReturn("associate");
+    when(associateGroup.getName()).thenReturn("ASSOCIATE");
+    when(response.getGroups()).thenReturn(ImmutableList.of(memberGroup, associateGroup));
 
     MemberDatabase database = client.getMembers();
 
@@ -98,15 +107,14 @@ public class SquareApiClientTest {
     when(johnDoe.getFamilyName()).thenReturn("Doe");
     when(janeSmith.getGivenName()).thenReturn("Jane");
     when(janeSmith.getFamilyName()).thenReturn("Smith");
-    CustomerGroupInfo group = mock(CustomerGroupInfo.class);
-    when(group.getName()).thenReturn("MEMBER");
-    when(johnDoe.getGroups()).thenReturn(ImmutableList.of(group));
-    when(janeSmith.getGroups()).thenReturn(ImmutableList.of(group));
 
+    when(johnDoe.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    when(janeSmith.getGroupIds()).thenReturn(ImmutableList.of("member"));
+    Map<String, String> groups = ImmutableMap.of("member", "MEMBER");
     MemberDatabase.Builder builder = MemberDatabase.builder();
 
-    Member johnDoeMember = Member.create(johnDoe);
-    Member janeSmithMember = Member.create(janeSmith);
+    Member johnDoeMember = Member.create(johnDoe, groups);
+    Member janeSmithMember = Member.create(janeSmith, groups);
     builder.addMember(johnDoeMember);
     builder.addMember(janeSmithMember);
     MemberDatabase database = builder.build();

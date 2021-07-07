@@ -76,18 +76,6 @@ public class KyudoInvoices {
         endDate);
   }
 
-  private static ListMultimap<Member, Payment> parsePaymentsFromCsv(
-      ImmutableTable<Integer, String, String> csv, MemberDatabase memberDatabase) {
-    ImmutableListMultimap.Builder<Member, Payment> result = ImmutableListMultimap.builder();
-    for (Map.Entry<?, Map<String, String>> entry : csv.rowMap().entrySet()) {
-      Member member = memberDatabase.nameToMember().get(entry.getValue().get("member"));
-      int quantity = Integer.parseInt(entry.getValue().get("amount")) / member.type().value();
-      result.putAll(member,
-          Collections.nCopies(quantity, Payment.create(member, Payment.PaymentType.DUES)));
-    }
-    return result.build();
-  }
-
   private static Credential createCredential(
       KyudoInvoiceOptions options) throws IOException, GeneralSecurityException {
     GoogleAuthorizationCodeFlow flow = new GoogleAuthorizationCodeFlow.Builder(
@@ -120,17 +108,6 @@ public class KyudoInvoices {
     Invoices invoices = generateInvoices(memberDatabase, accounts);
 
     sheetsClient.writeInvoices(options.invoiceSheetsId, invoices, accounts, startDateInclusive);
-    //    invoices.emails().values().forEach(gmailClient::sendEmail);
-    //    invoices.writeOutCsv(waiversPath, owedPath);
-
-    /*
-    // Cancel outstanding invoices
-    squareClient.cancelOutstandingInvoicesForAutoInvoicedCustomers(memberDatabase,
-        options.locationId);
-
-    // Send new ones
-    squareClient.createAndSendInvoices(invoices, options.locationId);
-    */
 
     System.out.println("===================================================================");
     System.out.println("WAIVERS:");
@@ -161,6 +138,10 @@ public class KyudoInvoices {
         endDateInclusive);
 
     emails.forEach(gmailClient::sendEmail);
+
+    squareClient.cancelOutstandingInvoicesForAutoInvoicedCustomers(memberDatabase,
+        options.locationId);
+    squareClient.createAndSendInvoices(emails, options.locationId);
   }
 
   private Invoices generateInvoices(

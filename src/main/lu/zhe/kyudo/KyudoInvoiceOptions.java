@@ -19,11 +19,6 @@ public class KyudoInvoiceOptions extends OptionsBase {
       converter = LocalDateConverter.class)
   public LocalDate startDate;
 
-  @Option(name = "base_path", abbrev = 'b',
-      help = "base path shared by all other file paths. It will be prepended when resolving files",
-      defaultValue = "")
-  public String basePath;
-
   @Option(name = "oauth_client_id", help = "Oath2 client name", defaultValue = "")
   public String oauthClientId;
 

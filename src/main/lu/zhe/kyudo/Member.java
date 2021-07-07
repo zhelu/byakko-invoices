@@ -4,6 +4,8 @@ import com.google.auto.value.*;
 import com.google.common.base.*;
 import com.squareup.square.models.*;
 
+import java.util.*;
+
 /**
  * Representation of a club member.
  *
@@ -11,13 +13,16 @@ import com.squareup.square.models.*;
  **/
 @AutoValue
 public abstract class Member {
-  public static Member create(Customer customer) {
+  public static Member create(Customer customer, Map<String, String> groups) {
     MemberType type = null;
-    for (CustomerGroupInfo group : customer.getGroups()) {
+    boolean autoInvoice = false;
+    for (String groupId : customer.getGroupIds()) {
       try {
-        type = MemberType.valueOf(Ascii.toUpperCase(group.getName()));
+        type = MemberType.valueOf(Ascii.toUpperCase(groups.get(groupId)));
       } catch (Exception e) {
-        // Ignore
+        if (groups.get(groupId).equals("AutoInvoice)")) {
+          autoInvoice = true;
+        }
       }
     }
     if (type == null) {
@@ -27,7 +32,8 @@ public abstract class Member {
     }
     return new lu.zhe.kyudo.AutoValue_Member(type,
         customer,
-        customer.getGivenName() + " " + customer.getFamilyName());
+        customer.getGivenName() + " " + customer.getFamilyName(),
+        autoInvoice);
   }
 
   public abstract MemberType type();
@@ -35,4 +41,6 @@ public abstract class Member {
   public abstract Customer customer();
 
   public abstract String name();
+
+  public abstract boolean autoInvoice();
 }
