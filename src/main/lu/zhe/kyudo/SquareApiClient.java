@@ -175,13 +175,15 @@ public class SquareApiClient {
 
   public void createAndSendInvoices(
       List<Invoices.InvoiceEmail> invoices, String locationId) throws IOException, ApiException {
+    Map<String, String> groups = getMemberGroups();
     for (Invoices.InvoiceEmail entry : invoices) {
       if (entry
           .member()
           .customer()
           .getGroupIds()
           .stream()
-          .noneMatch(g -> AUTOINVOICE_GROUP.equals(g))) {
+          .map(groups::get)
+          .noneMatch(AUTOINVOICE_GROUP::equals)) {
         continue;
       }
 

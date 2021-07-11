@@ -137,8 +137,10 @@ public class KyudoInvoices {
         startDateInclusive,
         endDateInclusive);
 
+    System.out.println("Sending emails");
     emails.forEach(gmailClient::sendEmail);
 
+    System.out.println("Sending invoices");
     squareClient.cancelOutstandingInvoicesForAutoInvoicedCustomers(memberDatabase,
         options.locationId);
     squareClient.createAndSendInvoices(emails, options.locationId);
