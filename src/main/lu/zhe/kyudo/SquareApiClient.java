@@ -106,12 +106,13 @@ public class SquareApiClient {
           new SearchOrdersRequest(ImmutableList.of(locationId), cursor, query, null, false);
       SearchOrdersResponse response = client.getOrdersApi().searchOrders(request);
       if (response.getOrders() != null) {
-        response
-            .getOrders()
-            .stream()
-            .filter(o -> o.getCustomerId() != null)
-            .forEach(o -> result.putAll(database.idToMember().get(o.getCustomerId()),
-                getPayment(o, database.idToMember().get(o.getCustomerId()))));
+        response.getOrders().stream().filter(o -> o.getCustomerId() != null).forEach(o -> {
+          Member member = database.idToMember().get(o.getCustomerId());
+          if (member == null) {
+            member = database.idToMember().get(o.getTenders().get(0).getCustomerId());
+          }
+          result.putAll(member, getPayment(o, member));
+        });
       }
       cursor = response.getCursor();
     } while (cursor != null);
